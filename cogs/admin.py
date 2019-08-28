@@ -92,18 +92,6 @@ class Admin(commands.Cog):
             return f"```py\n{e.__class__.__name__}: {e}\n```"
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
-    @commands.command(hidden=True)
-    async def amiadmin(self, ctx):
-        """ Are you admin? """
-        if ctx.author.id in self.config.owners:
-            await ctx.send(f"Yes **{ctx.author.name}** you are admin! ✅")
-        elif ctx.author.id in self.config.contributors:
-            await ctx.send(f"No, but you're a contributor **{ctx.author.name}** 💙")
-        elif ctx.author.id in self.config.friends:
-            await ctx.send(f"No, but you're a friend of Paws **{ctx.author.name}** 💜")
-        else:
-            await ctx.send(f"No, heck off **{ctx.author.name}**.")
-
     @commands.command(aliases=["re"], hidden=True)
     @commands.check(repo.is_owner)
     async def reload(self, ctx, name: str):
@@ -253,30 +241,6 @@ class Admin(commands.Cog):
         except discord.HTTPException as err:
             await ctx.send(err)
 
-    @commands.command(hidden=True)
-    @commands.check(repo.is_owner)
-    async def steal(self, ctx, emojiname, url: str = None):
-        """Steals emojis"""
-        if emojiname is None or "http" in emojiname:
-            return await ctx.send("No emoji name provided")
-        if url is None and len(ctx.message.attachments) == 1:
-            url = ctx.message.attachments[0].url
-        else:
-            url = url.strip("<>")
-
-        try:
-            botguild = self.bot.get_guild(423_879_867_457_863_680)
-            bio = await http.get(url, res_method="read")
-            await botguild.create_custom_emoji(name=emojiname, image=bio)
-            await ctx.message.delete()
-            await ctx.send(f"Successfully stolen emoji.")
-        except aiohttp.InvalidURL:
-            await ctx.send("The URL is invalid...")
-        except discord.InvalidArgument:
-            await ctx.send("This URL does not contain a usable image")
-        except discord.HTTPException as err:
-            await ctx.send(err)
-
     @commands.command(pass_context=True, name="compile", hidden=True)
     @commands.check(repo.is_owner)
     async def _compile(self, ctx, *, body: str):
@@ -371,51 +335,6 @@ class Admin(commands.Cog):
         mod = ", ".join(list(self.bot.cogs))
         await ctx.send(f"The current modules are:\n```\n{mod}\n```")
 
-    @commands.command(aliases=["gsi"], hidden=True)
-    @commands.check(repo.is_owner)
-    async def getserverinfo(self, ctx, *, guild_id: int):
-        """ Makes me get the information from a guild id """
-        guild = self.bot.get_guild(guild_id)
-        if guild is None:
-            return await ctx.send("Hmph.. I got nothing..")
-        members = set(guild.members)
-        bots = filter(lambda m: m.bot, members)
-        bots = set(bots)
-        members = len(members) - len(bots)
-        if guild == ctx.guild:
-            roles = " ".join([x.mention for x in guild.roles != "@everyone"])
-        else:
-            roles = ", ".join([x.name for x in guild.roles if x.name != "@everyone"])
-
-        info = discord.Embed(
-            title="Guild info",
-            description=f"» Name: {guild.name}\n» Members/Bots: `{members}:{len(bots)}`"
-            f"\n» Owner: {guild.owner}\n» Created at: {guild.created_at}"
-            f"\n» Roles: {roles}",
-            color=discord.Color.blue(),
-        )
-        info.set_thumbnail(url=guild.icon_url)
-        await ctx.send(embed=info)
-
-    @commands.command(aliases=["webhooktest"], hidden=True)
-    @commands.check(repo.is_owner)
-    async def whtest(self, ctx, whlink: str, *, texttosend):
-        """ Messages a webhook """
-        await ctx.message.add_reaction("a:loading:528744937794043934")
-        try:
-            hook = Webhook(whlink, is_async=True)
-            await hook.send(texttosend)
-            await hook.close()
-            await ctx.message.remove_reaction(
-                "a:loading:528744937794043934", member=ctx.me
-            )
-            await ctx.message.add_reaction(":done:513831607262511124")
-        except ValueError:
-            await ctx.message.remove_reaction(
-                "a:loading:528744937794043934", member=ctx.me
-            )
-            await ctx.message.add_reaction(":notdone:528747883571445801")
-
     @commands.command(hidden=True)
     @commands.check(repo.is_owner)
     async def sql(self, ctx, *, query: str):
@@ -453,63 +372,6 @@ class Admin(commands.Cog):
         else:
             await ctx.send(fmt)
 
-    @commands.group(aliases=["ul"], hidden=True)
-    @commands.check(repo.is_owner)
-    async def uplink(self, ctx):
-        """ Relay messages between current and target channel """
-        if ctx.invoked_subcommand is None:
-            _help = await ctx.bot.formatter.format_help_for(ctx, ctx.command)
-
-            for page in _help:
-                await ctx.send(page)
-
-    @uplink.command(name="-o", hidden=True)
-    @commands.check(repo.is_owner)
-    async def uplink_open(self, ctx, uplinkchannelid: int):
-        """ Open the connection """
-        msguplinkchan = self.bot.get_channel(uplinkchannelid)
-        with open("uplink.json", "r+") as file:
-            content = json.load(file)
-            content["uplinkchan"] = uplinkchannelid
-            content["downlinkchan"] = ctx.channel.id
-            file.seek(0)
-            json.dump(content, file)
-            file.truncate()
-            await msguplinkchan.send(
-                "A support staff member has connected to the channel."
-            )
-            await ctx.send("Connected.")
-
-    @uplink.command(name="-c", hidden=True)
-    @commands.check(repo.is_owner)
-    async def uplink_close(self, ctx):
-        """ Close the connection """
-        with open("uplink.json", "r+") as file:
-            content = json.load(file)
-            msguplinkchan = self.bot.get_channel(content["uplinkchan"])
-            content["uplinkchan"] = 0
-            content["downlinkchan"] = 0
-            file.seek(0)
-            json.dump(content, file)
-            file.truncate()
-            await msguplinkchan.send("The connection was closed.")
-            await ctx.send("Disconnected")
-
-    @commands.command(hidden=True)
-    @commands.check(repo.is_owner)
-    async def parsehtml(self, ctx, url: str):
-        r = requests.get(f"{url}")
-        data = r.text
-        soup = BeautifulSoup(data, "html.parser")
-        msgtosend = f"```html\n{soup.prettify()}\n```"
-        if len(msgtosend) > 1900:
-            file = BytesIO(msgtosend.encode("utf-8"))
-            return await ctx.send(
-                content=f"Too big to send, here is the file!",
-                file=discord.File(file, filename="parsedhtml.html"),
-            )
-        await ctx.send(msgtosend)
-
     @commands.command(hidden=True)
     @commands.check(repo.is_owner)
     async def cleanup(self, ctx, search=100):
@@ -544,24 +406,6 @@ class Admin(commands.Cog):
                 print(stderr)
                 return await ctx.send("Too big I'll print it instead")
             await ctx.send(f"```\n{stderr}\n```")
-
-    # @commands.command(hidden=True)
-    # @commands.check(repo.is_owner)
-    # async def gitpush(self, ctx: commands.Context, *, committext: str) -> None:
-    #     """ Push changes to github. """
-    #     await ctx.message.add_reaction("a:loading:528744937794043934")
-
-    #     def run_shell(command):
-    #         with Popen(command, stdout=PIPE, stderr=PIPE, shell=True) as proc:
-    #             return [std.decode("utf-8") for std in proc.communicate()]
-
-    #     await self.bot.loop.run_in_executor(None, run_shell, "git add --all")
-    #     await self.bot.loop.run_in_executor(
-    #         None, run_shell, f'git commit -m "{committext}"'
-    #     )
-    #     await self.bot.loop.run_in_executor(None, run_shell, "git push origin master")
-    #     await ctx.message.remove_reaction("a:loading:528744937794043934", member=ctx.me)
-    #     await ctx.message.add_reaction(":done:513831607262511124")
 
     @commands.command(hidden=True, aliases=["pull"])
     @commands.check(repo.is_owner)
